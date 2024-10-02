@@ -1,0 +1,73 @@
+
+
+
+```{r}
+# pacman::p_load(rvest, googlesheets4, tidyverse)
+# install.packages("pak")
+pak::pak(c("tidyverse", "chromote"))
+
+library(rvest)
+library(googlesheets4)
+library(tidyverse)
+```
+
+
+```{r}
+data <- read_sheet("https://docs.google.com/spreadsheets/d/11LaC3Eh5Y_YLsO08YJ_JTxO-b6qnbu_eZLK0NTZGS-Q/edit?gid=0#gid=0")
+```
+
+```{r}
+html <- minimal_html("<table>
+<tr>
+<th>Character</th>
+<th>Role</th>
+<th>Affiliation</th>
+</tr>
+<tr>
+<td>Luke Skywalker</td>
+<td>Jedi Knight</td>
+<td>Rebel Alliance</td>
+</tr>
+</table>")
+html_table(html)
+```
+
+
+```{r}
+url <- "https://en.wikipedia.org/wiki/Star_Wars_(soundtrack)"
+html <- read_html(url) 
+html |> 
+    html_table() |>
+    _[5:8]
+
+html |>
+html_elements(".tracklist") |>
+html_table()
+```
+
+
+```{r}
+url <- "https://durstongear.com/products/x-mid-1-tent-ultralight-backpacking?srsltid=AfmBOoo6yPP8g496tbJ18WFmLgMocdIWQX47hEl-lEPiUeMJayu7NrVi&variant=48282868121891"
+
+html <- read_html(url)
+
+# Find the row
+row <- html_elements(html, ".feature-chart__value")
+
+table_vals <- row |> html_element("p") |> html_text2() 
+
+html |> 
+    html_element(".feature-chart__heading") |> html_text2() 
+
+html |> 
+    html_elements(".feature-chart") |>
+    html_element(".feature-chart__table-row") |>
+    html_element(".feature-chart__heading")
+
+html |> 
+    html_elements(".feature-chart") |>
+  html_element(".feature-chart__table-row") |>
+    html_element("p")
+
+```
+
