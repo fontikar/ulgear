@@ -2,36 +2,12 @@
 
 
 ```{r}
-# pacman::p_load(rvest, googlesheets4, tidyverse)
-# install.packages("pak")
-pak::pak(c("tidyverse", "chromote"))
-
-library(rvest)
-library(googlesheets4)
-library(tidyverse)
+pacman::p_load(rvest, googlesheets4, tidyverse, tidytext)
 ```
 
+### The example from {rvest}
 
-```{r}
-data <- read_sheet("https://docs.google.com/spreadsheets/d/11LaC3Eh5Y_YLsO08YJ_JTxO-b6qnbu_eZLK0NTZGS-Q/edit?gid=0#gid=0")
-```
-
-```{r}
-html <- minimal_html("<table>
-<tr>
-<th>Character</th>
-<th>Role</th>
-<th>Affiliation</th>
-</tr>
-<tr>
-<td>Luke Skywalker</td>
-<td>Jedi Knight</td>
-<td>Rebel Alliance</td>
-</tr>
-</table>")
-html_table(html)
-```
-
+#### Retrieval from wikipedia
 
 ```{r}
 url <- "https://en.wikipedia.org/wiki/Star_Wars_(soundtrack)"
@@ -45,13 +21,30 @@ html_elements(".tracklist") |>
 html_table()
 ```
 
+### My google sheet 
+
+Containing URLS and ideally the stuff I want to scrape for
 
 ```{r}
-url <- "https://durstongear.com/products/x-mid-1-tent-ultralight-backpacking?srsltid=AfmBOoo6yPP8g496tbJ18WFmLgMocdIWQX47hEl-lEPiUeMJayu7NrVi&variant=48282868121891"
+data <- read_sheet("https://docs.google.com/spreadsheets/d/11LaC3Eh5Y_YLsO08YJ_JTxO-b6qnbu_eZLK0NTZGS-Q/edit?gid=0#gid=0")
+```
 
+### Proof of concept
+
+Let's just try to do this for one website first
+
+#### [Durston X Mid 1](https://durstongear.com/products/x-mid-1-tent-ultralight-backpacking?srsltid=AfmBOoo6yPP8g496tbJ18WFmLgMocdIWQX47hEl-lEPiUeMJayu7NrVi&variant=48282868121891)
+
+Following slides from [Hadley's rvest workshop ](https://github.com/hadley/web-scraping)
+
+```{r}
+# Define the URL
+url <- data$Link[1]
+
+# Convert the URL into an html
 html <- read_html(url)
 
-# Find the row
+# Find the "row" - the parts of the code you want to extract?
 row <- html_elements(html, ".feature-chart__value")
 
 table_vals <- row |> html_element("p") |> html_text2() 
@@ -64,10 +57,84 @@ html |>
     html_element(".feature-chart__table-row") |>
     html_element(".feature-chart__heading")
 
-html |> 
-    html_elements(".feature-chart") |>
-  html_element(".feature-chart__table-row") |>
-    html_element("p")
+spec_text <- row |> 
+  html_element("p") |> 
+  html_text2()
+```
 
+### Let's wrangle this text...
+
+Not sure if that was the best way to extract the data but let's wrangle with this for now
+Looks like 1 - 36 are the table data that I want from the `Specs` tab
+37 - 53 are from the `Features` tab
+54 - onwards are from`Compare` tab
+
+```{r}
+spec_text |> 
+  tibble() |> 
+  slice(1:36)
+```
+
+Looks like every odd value element is the component and the even value element is the spec value
+
+```{r}
+spec_tab <- spec_text[1:36]
+
+# The components
+spec_tab[seq(1, length(spec_tab), by = 2)]
+# Their values
+spec_tab[seq(2, length(spec_tab), by = 2)]
+```
+
+#### Let's clean up the values a little
+
+Ok that wasn't so terrifying
+
+```{r}
+part_vals <- spec_tab[seq(2, length(spec_tab), by = 2)] 
+
+
+gsub('\"', '', part_vals, fixed=TRUE) |>  #Remove forward slashes and " inches
+  str_replace(regex('\\n'), " ")  |>  # Replace newline notation \n with a space
+str_split(regex('/')) -> clean_vals
+```
+
+# I want to split oz and grams into separate cols
+
+```{r}
+clean_vals[[1]][1] 
+
+clean_vals |> map_df(~function(x) c(x[1], x[2]))
+
+clean_vals |> 
+  map(function(x) x[1]) |> 
+  list_c() |> 
+  trimws()
+
+clean_vals |> 
+  map(function(x) x[2]) |> 
+  list_c() |> 
+  trimws()
+```
+
+
+#### Put it in a tibble
+
+Not perfect yet, missing: 
+- Warranty in first col
+- Canopy and Floor Fabric value should = "20D Sil/PE Polyester 3500mm HH in Grey", it got split when we split oz/g
+- NA in `value_metric` should be the same as `value_imperial`
+
+
+```{r}
+tibble(part = spec_tab[seq(1, length(spec_tab), by = 2)],
+       value_imperial = clean_vals |> 
+         map(function(x) x[1]) |> 
+         list_c() |> 
+         trimws(),
+       value_metric = clean_vals |> 
+         map(function(x) x[2]) |> 
+         list_c() |> 
+         trimws())
 ```
 
