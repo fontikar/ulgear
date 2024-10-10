@@ -1,29 +1,14 @@
 
 
-
 ```{r}
 pacman::p_load(rvest, googlesheets4, tidyverse, tidytext)
-```
-
-### The example from {rvest}
-
-#### Retrieval from wikipedia
-
-```{r}
-url <- "https://en.wikipedia.org/wiki/Star_Wars_(soundtrack)"
-html <- read_html(url) 
-html |> 
-    html_table() |>
-    _[5:8]
-
-html |>
-html_elements(".tracklist") |>
-html_table()
 ```
 
 ### My google sheet 
 
 Containing URLS and ideally the stuff I want to scrape for
+
+<!-- How do I read this in without authenticating each time? -->
 
 ```{r}
 data <- read_sheet("https://docs.google.com/spreadsheets/d/11LaC3Eh5Y_YLsO08YJ_JTxO-b6qnbu_eZLK0NTZGS-Q/edit?gid=0#gid=0")
@@ -104,8 +89,6 @@ str_split(regex('/')) -> clean_vals
 ```{r}
 clean_vals[[1]][1] 
 
-clean_vals |> map_df(~function(x) c(x[1], x[2]))
-
 clean_vals |> 
   map(function(x) x[1]) |> 
   list_c() |> 
@@ -123,11 +106,13 @@ clean_vals |>
 Not perfect yet, missing: 
 - Warranty in first col
 - Canopy and Floor Fabric value should = "20D Sil/PE Polyester 3500mm HH in Grey", it got split when we split oz/g
+- No metric conversion for Stakes lengths
+- No imperial conversion for Stakes weights
 - NA in `value_metric` should be the same as `value_imperial`
 
 
 ```{r}
-tibble(part = spec_tab[seq(1, length(spec_tab), by = 2)],
+unprocessed_durston_df <- tibble(part = spec_tab[seq(1, length(spec_tab), by = 2)],
        value_imperial = clean_vals |> 
          map(function(x) x[1]) |> 
          list_c() |> 
@@ -136,5 +121,101 @@ tibble(part = spec_tab[seq(1, length(spec_tab), by = 2)],
          map(function(x) x[2]) |> 
          list_c() |> 
          trimws())
+```
+
+Fix the warranty column
+
+```{r}
+durston_warranty_fixed_df <- unprocessed_durston_df |> 
+  mutate(part = case_when(
+    str_detect(value_imperial, "years") ~ "Warranty",
+    TRUE ~ part
+  ))
+```
+
+Concat Fabric information: 20D Sil/PE Polyester 3500mm HH in Grey
+
+```{r}
+duston_fabric_fixed_df <- durston_warranty_fixed_df |> 
+  mutate(value_imperial = case_when(
+    str_detect(part, "Fabric") ~ paste(value_imperial, value_metric, sep = "/"),
+    TRUE ~ value_imperial
+  ),
+  value_metric = case_when(
+    str_detect(part, "Fabric") ~ value_metric, 
+    TRUE ~ value_metric
+  )
+  )
+```
+
+'8 DAC J Stakes' as part value instead of 'Stakes'
+
+```{r}
+duston_fabric_fixed_df[duston_fabric_fixed_df$part == "Stakes",]$value_imperial |> 
+  str_extract("^[^\\(]+") |> 
+  str_trim()
+
+duston_stakes_unpacked_df <- 
+  duston_fabric_fixed_df |> 
+  mutate(part = case_when(
+    str_detect(part, "^Stakes") ~ str_extract(value_imperial, "^[^\\(]+") |> str_trim(),
+    TRUE ~ part
+  ),
+  value_imperial = case_when(
+    str_detect(part, "^8") ~ str_extract(value_imperial, "(?<=\\().*(?=\\))") |> str_trim(),
+    TRUE ~ value_imperial
+  ),
+  value_metric = case_when(
+    str_detect(part, "^8") ~ value_imperial,
+    TRUE ~ value_metric
+  )
+  )
+```
+
+If NA in `value_metric` should be the same as `value_imperial`
+
+
+```{r}
+durston_complete_df <- duston_stakes_unpacked_df |>
+  mutate(value_metric = case_when(
+    is.na(value_metric) ~ value_imperial, 
+    TRUE ~ value_metric
+  ))
+```
+
+No metric conversion for Stakes lengths
+
+I think we need a column of units (oz, inches, grams), so we need a long df first. 
+Need a column to delineate whether something has dimensions or just a description
+and if it has a description, the measurement_type should be NA
+
+```{r}
+durston_long_df <- durston_complete_df |> 
+  pivot_longer(cols = starts_with("value"), names_to = "measurement_type", values_to = "value") |> 
+  mutate(measurement_type = str_extract(measurement_type, "(?<=_).*"),
+         has_dimensions = case_when(
+           str_detect(part, "Canopy|Fabric|Zippers|Warranty") ~ 0,
+           TRUE ~ 1
+         ) 
+) |> 
+  relocate(has_dimensions, .after = part) |> 
+  mutate(measurement_type = case_when(
+    has_dimensions == 0 ~ NA_character_,
+    TRUE ~ measurement_type
+  )) |> 
+  print(n = Inf)
+```
+
+
+
+```{r}
+
+```
+
+
+No imperial conversion for Stakes
+
+```{r}
+
 ```
 
