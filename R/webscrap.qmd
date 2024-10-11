@@ -123,7 +123,7 @@ unprocessed_durston_df <- tibble(part = spec_tab[seq(1, length(spec_tab), by = 2
          trimws())
 ```
 
-Fix the warranty column
+##### Fix the warranty column
 
 ```{r}
 durston_warranty_fixed_df <- unprocessed_durston_df |> 
@@ -133,7 +133,7 @@ durston_warranty_fixed_df <- unprocessed_durston_df |>
   ))
 ```
 
-Concat Fabric information: 20D Sil/PE Polyester 3500mm HH in Grey
+##### Concat Fabric information: 20D Sil/PE Polyester 3500mm HH in Grey
 
 ```{r}
 duston_fabric_fixed_df <- durston_warranty_fixed_df |> 
@@ -148,7 +148,7 @@ duston_fabric_fixed_df <- durston_warranty_fixed_df |>
   )
 ```
 
-'8 DAC J Stakes' as part value instead of 'Stakes'
+##### '8 DAC J Stakes' as part value instead of 'Stakes'
 
 ```{r}
 duston_fabric_fixed_df[duston_fabric_fixed_df$part == "Stakes",]$value_imperial |> 
@@ -172,8 +172,7 @@ duston_stakes_unpacked_df <-
   )
 ```
 
-If NA in `value_metric` should be the same as `value_imperial`
-
+##### If NA in `value_metric` should be the same as `value_imperial`
 
 ```{r}
 durston_complete_df <- duston_stakes_unpacked_df |>
@@ -183,30 +182,160 @@ durston_complete_df <- duston_stakes_unpacked_df |>
   ))
 ```
 
-No metric conversion for Stakes lengths
-
 I think we need a column of units (oz, inches, grams), so we need a long df first. 
 Need a column to delineate whether something has dimensions or just a description
 and if it has a description, the measurement_type should be NA
 
 ```{r}
 durston_long_df <- durston_complete_df |> 
-  pivot_longer(cols = starts_with("value"), names_to = "measurement_type", values_to = "value") |> 
-  mutate(measurement_type = str_extract(measurement_type, "(?<=_).*"),
+  pivot_longer(cols = starts_with("value"), names_to = "measurement_system", values_to = "value") |> 
+  mutate(measurement_system = str_extract(measurement_system, "(?<=_).*"),
          has_dimensions = case_when(
            str_detect(part, "Canopy|Fabric|Zippers|Warranty") ~ 0,
            TRUE ~ 1
          ) 
 ) |> 
   relocate(has_dimensions, .after = part) |> 
-  mutate(measurement_type = case_when(
+  mutate(measurement_system = case_when(
     has_dimensions == 0 ~ NA_character_,
-    TRUE ~ measurement_type
-  )) |> 
+    TRUE ~ measurement_system
+  ),
+  measurement_type = case_when(
+    str_detect(part, "Length|Area|Height|Width|Footprint|Size") ~ "measured",
+    has_dimensions == 0 ~ NA_character_,
+    TRUE ~ "weighed"
+  )
+  ) |> 
+  relocate(measurement_type, .after = measurement_system) |> 
   print(n = Inf)
 ```
 
+#### Pivot out and Lengths and Widths as columns
 
+```{r}
+durston_measured_dimensions <- durston_long_df |> 
+  filter(measurement_type == "measured") |> 
+  mutate(dimension = word(part,2),
+         dimension = tolower(dimension),
+         part = word(part,1)) 
+
+# Join back to long df
+durston_long_dimension_df <- durston_long_df|> 
+  filter(!measurement_type == "measured"| is.na(measurement_type)) |> 
+  bind_rows(durston_measured_dimensions) |> 
+  relocate(dimension, .after = measurement_type) |> 
+  mutate(dimension = case_when(
+    measurement_type == "weighed" ~ "mass",
+    TRUE ~ dimension
+  )) |> 
+  arrange(measurement_type) |> 
+  print(n = Inf)
+
+```
+
+### Measurements
+
+Clean up `value` column
+
+- Split up the two values for area for Fly and Vestibule 
+- Compute area for Fly and Vestibule
+- Take the units and put them in a col
+
+#### - Split up the two values for area for Fly and Vestibule 
+
+```{r}
+durston_fly_vest_df <- durston_long_dimension_df |> 
+  filter(measurement_type == "measured") |> 
+  filter(part %in% c("Fly", "Vestibule"))
+
+area_values <- durston_fly_vest_df |> 
+  pull(value)
+
+area_values |> str_split("x") |> 
+  map(function(x) x[[1]]) |> 
+  list_c() |> 
+  str_trim() |> 
+  str_extract("\\d+\\.?\\d*")
+
+area_values |> str_split("x") |> 
+  map(function(x) x[[1]]) |> 
+  list_c() |> 
+  str_trim() |> 
+  str_extract("[a-zA-Z]+")
+
+
+area_values |> str_split("x") |> 
+  map(function(x) x[[2]]) |> 
+  list_c() |> 
+  str_trim() |> 
+  str_extract("\\d+\\.?\\d*")
+
+durston_fly_vest_unpacked_df <- durston_fly_vest_df |> 
+  mutate(length = str_split(value, "x") |> 
+           map(function(x) x[[1]]) |> 
+           list_c() |> 
+           str_trim() |> 
+           str_extract("\\d+\\.?\\d*"),
+         length_units = area_values |> str_split("x") |> 
+           map(function(x) x[[1]]) |> 
+           list_c() |> 
+           str_trim() |> 
+           str_extract("[a-zA-Z]+"),
+         width = str_split(value, "x") |> 
+           map(function(x) x[[2]]) |> 
+           list_c() |> 
+           str_trim() |> 
+           str_extract("\\d+\\.?\\d*"),
+         width_units = 
+           area_values |> str_split("x") |> 
+           map(function(x) x[[2]]) |> 
+           list_c() |> 
+           str_trim() |> 
+           str_extract("[a-zA-Z]+")
+  ) 
+```
+
+##### Pivot length/width back to dimensions 
+
+Add units and Compute area for Fly and Vestibule
+
+```{r}
+durston_fly_vest_tidied_df <- 
+  durston_fly_vest_unpacked_df |> 
+  mutate(
+    across(
+      .cols = c(length, width),
+      as.numeric),
+    area = length * width
+  ) |> 
+  select(-c(dimension,value)) |> 
+  pivot_longer(c(length, width, area), names_to = "dimension", values_to = "value") |> 
+  mutate(
+    units = coalesce(length_units, width_units),
+    units = case_when(
+      units == "sq" ~ "sqft",
+      dimension == "area" ~ paste0(units,"^2"),
+      measurement_system == "imperial" &  measurement_type == "measured" ~ "in",
+      measurement_system == "metric" &  measurement_type == "measured" ~ "cm",
+      TRUE ~ units
+    ),
+  ) |> 
+  select(-c(length_units, width_units)) 
+```
+
+
+
+
+- 
+
+
+
+```{r}
+
+```
+
+
+No metric conversion for Stakes lengths
 
 ```{r}
 
