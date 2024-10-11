@@ -1,7 +1,9 @@
 
 
 ```{r}
-pacman::p_load(rvest, googlesheets4, tidyverse, tidytext)
+pacman::p_load(rvest, googlesheets4, tidyverse, tidytext, here)
+
+source(here("R/text_cleaning.R"))
 ```
 
 ### My google sheet 
@@ -11,6 +13,8 @@ Containing URLS and ideally the stuff I want to scrape for
 <!-- How do I read this in without authenticating each time? -->
 
 ```{r}
+gs4_deauth()
+
 data <- read_sheet("https://docs.google.com/spreadsheets/d/11LaC3Eh5Y_YLsO08YJ_JTxO-b6qnbu_eZLK0NTZGS-Q/edit?gid=0#gid=0")
 ```
 
@@ -313,12 +317,16 @@ durston_fly_vest_tidied_df <-
   mutate(
     units = coalesce(length_units, width_units),
     units = case_when(
+      is.na(units) & measurement_system == "imperial" &  measurement_type == "measured" ~ "in",
+      measurement_system == "metric" &  measurement_type == "measured" ~ "cm",
       units == "sq" ~ "sqft",
       dimension == "area" ~ paste0(units,"^2"),
-      measurement_system == "imperial" &  measurement_type == "measured" ~ "in",
-      measurement_system == "metric" &  measurement_type == "measured" ~ "cm",
       TRUE ~ units
     ),
+    units = case_when(
+      dimension == "area" ~ paste0(units,"^2"),
+      TRUE ~ units
+    )
   ) |> 
   select(-c(length_units, width_units)) 
 ```
@@ -326,50 +334,128 @@ durston_fly_vest_tidied_df <-
 ####  Floor, Fly, Tent
 
 ```{r}
-durston_long_dimension_df |> 
+durston_fft_tidied_df <- durston_long_dimension_df |> 
   filter(measurement_type == "measured") |> 
   filter(!part %in% c("Packed", "Fly", "Vestibule")) |> 
   mutate(
-    value2 = readr::parse_number(value),
     units = extract_units(value),
-         units2 =  case_when(
-  is.na(units) & measurement_system == "imperial" &  measurement_type == "measured" ~ "in",
- is.na(units) &  measurement_system == "metric" &  measurement_type == "measured" ~ "cm",
- TRUE ~ units
-)
-) 
+    units =  case_when(
+      is.na(units) & measurement_system == "imperial" &  measurement_type == "measured" ~ "in",
+      is.na(units) &  measurement_system == "metric" &  measurement_type == "measured" ~ "cm",
+      units == "sq" ~ "sqft",
+      TRUE ~ units
+    ),
+    units = case_when(
+      dimension == "area" ~ paste0(units,"^2"),
+      TRUE ~ units
+    ),
+    value = readr::parse_number(value),
+  ) 
 ```
-
 
 #### Packed size
 
 ```{r}
-durston_long_dimension_df |> 
+durston_packed_size_tidied_df <- durston_long_dimension_df |> 
   filter(measurement_type == "measured") |> 
   filter(part %in% "Packed") |> 
-  mutate(length = split_on_x_num_vals(value, 1),
-           width = split_on_x_num_vals(value, 2)) 
+  mutate(
+    units = extract_units(value),
+    units = case_when(
+      measurement_system == "imperial" & measurement_type == "measured" ~ "in",
+      TRUE ~ units),
+    value = remove_units(value)
+    )
 ```
 
 
 ### Weighed
 
-```{r}
-durston_long_df |> 
+Fix Typical set up metric
 
+```{r}
+durston_weighed_preclean_df <- durston_long_df |> 
+  filter(measurement_type == "weighed") |> 
+  mutate(value = case_when(
+    str_detect(part, "Typical") & measurement_system == "metric" ~  str_remove(value, "\\s*\\(.*\\)"),
+    TRUE ~ value
+  )
+  )
 ```
 
-
-No metric conversion for Stakes lengths
+##### Everything else but stakes
 
 ```{r}
-
+durston_weighed_nostakes_tidied_df <- durston_weighed_preclean_df |> 
+  filter(!str_detect(part, "8")) |> 
+  mutate(units = extract_units(value),
+         value = remove_units(value))
 ```
 
+#### 8 DAC J Stakes
 
-No imperial conversion for Stakes
 
 ```{r}
+durston_stakes_tidied_df <- durston_weighed_preclean_df |> 
+  filter(str_detect(part, "8")) |> 
+  separate_longer_delim(value, ";") |> 
+  mutate(
+         units = extract_units(value),
+         value = remove_units(value),
+         ) |> 
+  mutate(stake_mass = str_extract(value, "(?<=@ )\\d+"),
+         stake_length = str_extract(value, "(?<=x )\\d+"),
+         stake_quantity= str_extract(value, "^\\d")
+         ) |> 
+  select(-value) |> 
+  pivot_longer(starts_with("stake"), names_to = "dimension", values_to = "value") |> 
+  mutate(
+    units = case_when(
+    dimension == "stake_quantity" ~ NA_character_,
+    dimension == "stake_mass" & measurement_system == "imperial" ~ "oz",
+    dimension == "stake_length" & measurement_system == "imperial" ~ "in",
+    dimension == "stake_length" & measurement_system == "metric" ~ "cm",
+    TRUE ~ units
+  ),
+  ) |> 
+  mutate(
+    measurement_type = case_when(
+      str_detect(dimension, "length") ~ "measured",
+      str_detect(dimension, "quantity") ~ "counted",
+      TRUE ~ measurement_type
+    )
+  ) |> 
+  mutate(
+    value = as.numeric(value),
+    value = case_when(
+      dimension == "stake_mass" & measurement_system == "imperial" ~ value/28.34,
+      dimension == "stake_length" & measurement_system == "metric" ~ value*2.54,
+      TRUE ~ value
+    )
+  )
+```
 
+### Put it all together
+
+```{r}
+durston_list <- list(durston_fly_vest_tidied_df,
+                     durston_fft_tidied_df,
+                     durston_weighed_nostakes_tidied_df,
+                     durston_stakes_tidied_df,
+                     durston_long_dimension_df |> 
+                       filter(is.na(measurement_type))
+)
+
+
+durston_tidied_df <- map(durston_list,
+    convert_numeric_value_to_char) |> 
+  list_rbind()
+
+dim(durston_long_df) 
+dim(durston_tidied_df)
+
+
+durston_tidied_df |> print(n = Inf)
+durston_long_df |> print(n = Inf)
 ```
 
