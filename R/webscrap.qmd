@@ -241,7 +241,7 @@ Clean up `value` column
 - Compute area for Fly and Vestibule
 - Take the units and put them in a col
 
-#### - Split up the two values for area for Fly and Vestibule 
+####  Fly and Vestibule 
 
 ```{r}
 durston_fly_vest_df <- durston_long_dimension_df |> 
@@ -323,14 +323,39 @@ durston_fly_vest_tidied_df <-
   select(-c(length_units, width_units)) 
 ```
 
-
-
-
-- 
-
-
+####  Floor, Fly, Tent
 
 ```{r}
+durston_long_dimension_df |> 
+  filter(measurement_type == "measured") |> 
+  filter(!part %in% c("Packed", "Fly", "Vestibule")) |> 
+  mutate(
+    value2 = readr::parse_number(value),
+    units = extract_units(value),
+         units2 =  case_when(
+  is.na(units) & measurement_system == "imperial" &  measurement_type == "measured" ~ "in",
+ is.na(units) &  measurement_system == "metric" &  measurement_type == "measured" ~ "cm",
+ TRUE ~ units
+)
+) 
+```
+
+
+#### Packed size
+
+```{r}
+durston_long_dimension_df |> 
+  filter(measurement_type == "measured") |> 
+  filter(part %in% "Packed") |> 
+  mutate(length = split_on_x_num_vals(value, 1),
+           width = split_on_x_num_vals(value, 2)) 
+```
+
+
+### Weighed
+
+```{r}
+durston_long_df |> 
 
 ```
 
