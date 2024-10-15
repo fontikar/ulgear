@@ -1,0 +1,73 @@
+---
+title: "spider plots"
+format: html
+---
+
+```{r}
+pacman::p_load(here, tidyverse, fmsb, janitor)
+```
+
+Read in my own data
+
+```{r}
+xmid1 <- read_csv(here("output/data/durston_xmid1_tidy.csv"))
+```
+
+
+An example
+
+```{r}
+# Create data: note in High school for Jonathan:
+data <- as.data.frame(matrix( sample( 2:20 , 10 , replace=T) , ncol=10))
+colnames(data) <- c("math" , "english" , "biology" , "music" , "R-coding", "data-viz" , "french" , "physic", "statistic", "sport" )
+ 
+# To use the fmsb package, I have to add 2 lines to the dataframe: the max and min of each topic to show on the plot!
+data <- rbind(rep(20,10) , rep(0,10) , data)
+ 
+# Check your data, it has to look like this!
+# head(data)
+
+# The default radar chart 
+radarchart(data)
+```
+
+Ok so I need some wide data and I singular value...
+What variables do I want to represent...
+
+- weight
+- area
+- price (which I don't have at the moment)
+
+```{r}
+xmid1 
+```
+
+# Filter to metric for now
+
+Let's plot the weight for all the parts for now... excluding stakes
+
+```{r}
+weight <- xmid1 |> 
+  filter(measurement_system == "metric") |> 
+  filter(measurement_type == "weighed", ! str_detect(part, "Stakes")) |> 
+  select(part, value) |> 
+  mutate(value = as.numeric(value)) |> 
+  pivot_wider(names_from = part, values_from = value) |> 
+  clean_names()
+
+# Get max and min
+max_mins <- xmid1 |> 
+  filter(measurement_system == "metric") |> 
+  filter(measurement_type == "weighed", ! str_detect(part, "Stakes")) |> 
+  select(part, value) |> 
+  mutate(value = as.numeric(value)) |> 
+  summarise(max = max(value)+0.10*(max(value)),
+            min = min(value)-0.10*(min(value)))
+
+# Add to data
+data <- rbind(rep(max_mins$max,ncol(weight)) , rep(c(max_mins$min),ncol(weight)), weight)
+
+
+radarchart(data)
+```
+

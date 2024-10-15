@@ -1,0 +1,53 @@
+part,has_dimensions,measurement_system,measurement_type,dimension,value,units
+Fly,1,imperial,measured,length,67,in
+Fly,1,imperial,measured,width,100,in
+Fly,1,imperial,measured,area,6700,in^2
+Fly,1,metric,measured,length,170,cm
+Fly,1,metric,measured,width,254,cm
+Fly,1,metric,measured,area,43180,cm^2
+Vestibule,1,imperial,measured,length,11.5,sqft
+Vestibule,1,imperial,measured,width,2,sqft
+Vestibule,1,imperial,measured,area,23,sqft^2
+Vestibule,1,metric,measured,length,1.1,cm
+Vestibule,1,metric,measured,width,2,cm
+Vestibule,1,metric,measured,area,2.2,cm^2
+Floor,1,imperial,measured,length,90,in
+Floor,1,metric,measured,length,2.3,m
+Floor,1,imperial,measured,width,32,in
+Floor,1,metric,measured,width,81,cm
+Floor,1,imperial,measured,area,20,ft^2
+Floor,1,metric,measured,area,1.85,m^2
+Peak,1,imperial,measured,height,46,in
+Peak,1,metric,measured,height,117,cm
+Fly,1,imperial,weighed,NA,17.3,oz
+Fly,1,metric,weighed,NA,490,g
+Inner Tent,1,imperial,weighed,NA,10.7,oz
+Inner Tent,1,metric,weighed,NA,305,g
+Complete Tent,1,imperial,weighed,NA,28,oz
+Complete Tent,1,metric,weighed,NA,795,g
+Stuff Sack,1,imperial,weighed,NA,0.4,oz
+Stuff Sack,1,metric,weighed,NA,12,g
+"Typical Setup (Tent, Sack, 6 Stakes)",1,imperial,weighed,NA,30.8,oz
+"Typical Setup (Tent, Sack, 6 Stakes)",1,metric,weighed,NA,875,g
+8 DAC J Stakes,1,imperial,weighed,stake_mass,0.247000705716302,oz
+8 DAC J Stakes,1,imperial,measured,stake_length,6,in
+8 DAC J Stakes,1,imperial,counted,stake_quantity,4,NA
+8 DAC J Stakes,1,imperial,weighed,stake_mass,0.564573041637262,oz
+8 DAC J Stakes,1,imperial,measured,stake_length,8,in
+8 DAC J Stakes,1,imperial,counted,stake_quantity,4,NA
+8 DAC J Stakes,1,metric,weighed,stake_mass,7,g
+8 DAC J Stakes,1,metric,measured,stake_length,15.24,cm
+8 DAC J Stakes,1,metric,counted,stake_quantity,4,NA
+8 DAC J Stakes,1,metric,weighed,stake_mass,16,g
+8 DAC J Stakes,1,metric,measured,stake_length,20.32,cm
+8 DAC J Stakes,1,metric,counted,stake_quantity,4,NA
+Canopy Fabric,0,NA,NA,NA,20D Sil/PE Polyester 3500mm HH in Sage,NA
+Canopy Fabric,0,NA,NA,NA,PE Polyester 3500mm HH in Sage,NA
+Floor Fabric,0,NA,NA,NA,20D Sil/PE Polyester 3500mm HH in Grey,NA
+Floor Fabric,0,NA,NA,NA,PE Polyester 3500mm HH in Grey,NA
+Fly Zippers,0,NA,NA,NA,YKK #3 AquaGuard with buckle,NA
+Fly Zippers,0,NA,NA,NA,YKK #3 AquaGuard with buckle,NA
+Inner Zippers,0,NA,NA,NA,YKK #3,NA
+Inner Zippers,0,NA,NA,NA,YKK #3,NA
+Warranty,0,NA,NA,NA,2 years,NA
+Warranty,0,NA,NA,NA,2 years,NA

@@ -457,5 +457,8 @@ dim(durston_tidied_df)
 
 durston_tidied_df |> print(n = Inf)
 durston_long_df |> print(n = Inf)
+
+# Export it 
+write_csv(durston_tidied_df, file = here("output/data/durston_xmid1_tidy.csv"))
 ```
 
